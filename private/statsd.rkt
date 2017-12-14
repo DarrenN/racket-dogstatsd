@@ -10,13 +10,13 @@
          counter
          guage
          histogram
-         timer)
+         timer
+         with-timer)
 
 ;; UDP Socket
 (define sock #f)
 
 ;; Metric constants
-
 (define COUNTER "c")
 (define GAUGE "g")
 (define TIMER "ms")
@@ -136,13 +136,19 @@
 ; TESTS
 
 (module+ test
-  (require rackunit)
+  (require rackunit
+           racket/list)
 
   (define s (create-socket))
+  (define (slow) (for ([i (range (random 4))]) (sleep 1)))
+
+  (with-timer #:name "rkt.timer" #:tags '("drun")
+    (slow))
 
   (test-case "timer works"
-    (timer "rkt.timer" 3010.1))
-  
+    (timer "rkt.timer" 23))
+
+
   (test-case "check-sample-rate returns sample-rate or #f"
     (check-false (check-sample-rate 0.12 GAUGE))
     (check-false (check-sample-rate 0.12 SET))
