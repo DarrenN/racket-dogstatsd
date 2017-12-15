@@ -5,7 +5,7 @@ racket-dogstatsd
 
 **Very hack. Use at your peril.**
 
-```scheme
+```clojure
 (with-timer #:name "rkt.timer" #:tags '("proc:send-times" "proc:with-timer")
     ;; code you wanna time here:
     (let ([xs (range (+ 10000 (random 100000)))])
