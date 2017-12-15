@@ -14,13 +14,6 @@
   (format "_e{~a,~a}:~a|~a" (string-length title) (string-length text) title
           text))
 
-;; Append a separator, prefix and value to metric to str, used in event
-;; (-> string? string? string? string?)
-(define (append-event-metric prefix value str)
-  (if value
-      (format "~a|~a:~a" str prefix (remove-line-breaks (format "~a" value)))
-      str))
-
 ;; Ensure priority is only ever normal or low
 ;; (-> string? string?)
 (define (default-priority [str "normal"])

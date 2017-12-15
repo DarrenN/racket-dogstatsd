@@ -3,7 +3,8 @@
 (require racket/string
          threading)
 
-(provide append-sample-rate
+(provide append-event-metric
+         append-sample-rate
          append-tags
          create-name-value-type
          escape-tags
@@ -41,6 +42,13 @@
 ;; (-> string? string?)
 (define (remove-line-breaks str)
   (string-trim (string-replace str #px"\\s" " ")))
+
+;; Append a separator, prefix and value to metric to str, used in event
+;; (-> string? string? string? string?)
+(define (append-event-metric prefix value str)
+  (if value
+      (format "~a|~a:~a" str prefix (remove-line-breaks (format "~a" value)))
+      str))
 
 
 ;//////////////////////////////////////////////////////////////////////////////

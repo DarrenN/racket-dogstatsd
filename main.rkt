@@ -2,6 +2,7 @@
 
 (require "./private/statsd.rkt")
 (require "./private/events.rkt")
+(require "./private/servicechecks.rkt")
 
 (module+ test
   (require rackunit))
@@ -32,8 +33,11 @@
 (module+ test
   ;; Tests to be run with raco test
   (create-socket)
-  (event "rkt.event" "test event from racket" #:source-type-name "racket"
+  (event "cthulhu.rkt" "test event for HackDay™" #:source-type-name "racket"
          #:tags '("proc:main-test"))
+  (service-check "Cthulhu Service Discovery" OK #:timestamp (current-seconds)
+                 #:tags '("proc:main-test")
+                 #:message "CSD has found a number of Old Ones available!")
   )
 
 (module+ main
