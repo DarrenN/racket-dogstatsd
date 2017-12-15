@@ -8,7 +8,7 @@
   (define (send-times)
     (with-timer #:name "rkt.timer" #:tags '("proc:send-times" "proc:with-timer")
       (time
-       (let ([xs (range (+ 10000 (random 200000)))])
+       (let ([xs (range (+ 10000 (random 100000)))])
          (histogram "rkt.histogram" (length xs) #:tags '("proc:send-times"
                                                          "aeon:12"))
          (for ([i xs])
