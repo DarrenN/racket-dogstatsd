@@ -33,9 +33,9 @@
 (module+ test
   ;; Tests to be run with raco test
   (create-socket)
-  (event "cthulhu.rkt" "test event for HackDay™" #:source-type-name "racket"
+  (event "cthulhu.rkt" "Test event for HackDay" #:source-type-name "racket"
          #:tags '("proc:main-test"))
-  (service-check "Cthulhu Service Discovery" OK #:timestamp (current-seconds)
+  (service-check "cthulhu.service" OK #:timestamp (current-seconds)
                  #:tags '("proc:main-test")
                  #:message "CSD has found a number of Old Ones available!")
   )
