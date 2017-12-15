@@ -9,7 +9,8 @@ racket-dogstatsd
 (with-timer #:name "rkt.timer" #:tags '("proc:send-times" "proc:with-timer")
     ;; code you wanna time here:
     (let ([xs (range (+ 10000 (random 100000)))])
-         (histogram "rkt.histogram" (length xs) #:tags '("proc:send-times"
+        ;; lets drop a histogram metric!
+        (histogram "rkt.histogram" (length xs) #:tags '("proc:send-times"
                                                          "aeon:12"))
          (for ([i xs])
            (* i i 3.141)))
