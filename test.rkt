@@ -1,0 +1,18 @@
+#lang racket/base
+
+(require racket/list
+         "./private/statsd.rkt")
+
+(module+ main
+  (create-socket)
+  (define (send-times)
+    (with-timer #:name "rkt.timer" #:tags '("proc:send-times")
+      (time
+       (let ([xs (range (+ 10000 (random 200000)))])
+         (histogram "rkt.histogram" (length xs) #:tags '("proc:send-times"))
+         (for ([i xs])
+           (* i i 3.141)))))
+    (sleep 0.5)
+    (send-times))
+
+  (send-times))

@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require "./private/statsd.rkt")
+(require "./private/events.rkt")
 
 (module+ test
   (require rackunit))
@@ -30,6 +31,9 @@
 
 (module+ test
   ;; Tests to be run with raco test
+  (create-socket)
+  (event "rkt.event" "test event from racket" #:source-type-name "racket"
+         #:tags '("proc:main-test"))
   )
 
 (module+ main
