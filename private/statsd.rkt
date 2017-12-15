@@ -8,6 +8,7 @@
 
 (provide create-socket
          counter
+         event
          guage
          histogram
          timer
@@ -35,6 +36,24 @@
 ;; (-> list? list?)
 (define (escape-tags tags)
   (map (λ (s) (string-replace (string-trim s) " " "_")) tags))
+
+;; Metrics can't have line breaks
+;; (-> string? string?)
+(define (remove-line-breaks str)
+  (string-trim (string-replace str "\n" " ")))
+
+;; _e{title.length,text.length}:title|text|d:timestamp|h:hostname|p:priority|t:alert_type|#tag1,tag2
+
+(define (create-event-title-text title text)
+  (format "_e{~a,~a}:~a|~a" (string-length title) (string-length text) title
+          text))
+
+;; Append a separator, prefix and value to metric to str, used in event
+;; (-> string? string? string? string?)
+(define (append-metric prefix value str)
+  (if value
+      (format "~a|~a:~a" str prefix (remove-line-breaks value))
+      str))
 
 ;; Build a basic name:value|type string
 ;; (-> string? (U number? string?) string? string? string?)
@@ -95,6 +114,44 @@
                #:tags timer-tags)
         result))))
 
+
+;//////////////////////////////////////////////////////////////////////////////
+; PUBLIC
+
+;; Create a UDP socket and make available to metric functions
+(define (create-socket #:host-name [host-name "127.0.0.1"]
+                       #:host-port [host-port 8125])
+  (set! sock (udp-open-socket))
+  (udp-connect! sock host-name host-port)
+  sock)
+
+;; Basic metric procs
+;; Ex: (counter name value #:sample-rate 0.25 #:tags '("city:london" "tz:gmt"))
+(define/metric guage GAUGE)
+(define/metric set SET)
+(define/metric counter COUNTER)
+(define/metric histogram HISTOGRAM)
+(define/metric timer TIMER)
+
+;; Build event metric bytes
+(define (event title text
+               #:timestamp [timestamp #f]
+               #:hostname [hostname #f]
+               #:aggregation-key [aggregation-key #f]
+               #:priority [priority #f]
+               #:source-type-name [source-type-name #f]
+               #:alert-type [alert-type #f]
+               #:tags [tags #f])
+  (string->bytes/utf-8
+   (~>> (create-event-title-text title text)
+        (append-metric "t" timestamp)
+        (append-metric "h" hostname)
+        (append-metric "k" aggregation-key)
+        (append-metric "p" priority)
+        (append-metric "s" source-type-name)
+        (append-metric "t" alert-type)
+        (append-tags tags))))
+
 ;; [Macro]
 ;; Wrap a body with a timer call:
 ;; (with-timer #:name "timer.name" #:sample-rate 0.5 #:tags '()
@@ -113,25 +170,6 @@
     [(_ #:name name body ...)
      (time-body (syntax/loc stx name) #f #f (syntax/loc stx (body ...)))]))
 
-
-;//////////////////////////////////////////////////////////////////////////////
-; PUBLIC
-
-(define (create-socket #:host-name [host-name "127.0.0.1"]
-                       #:host-port [host-port 8125])
-  (set! sock (udp-open-socket))
-  (udp-connect! sock host-name host-port)
-  sock)
-
-;; Basic metric procs
-;; Ex: (counter name value #:sample-rate 0.25 #:tags '("city:london" "tz:gmt"))
-
-(define/metric guage GAUGE)
-(define/metric set SET)
-(define/metric counter COUNTER)
-(define/metric histogram HISTOGRAM)
-(define/metric timer TIMER)
-
 ;//////////////////////////////////////////////////////////////////////////////
 ; TESTS
 
@@ -142,12 +180,14 @@
   (define s (create-socket))
   (define (slow) (for ([i (range (random 4))]) (sleep 1)))
 
-  (with-timer #:name "rkt.timer" #:tags '("drun")
+  (with-timer #:name "rkt.timer" #:tags '("lambda")
     (slow))
 
   (test-case "timer works"
     (timer "rkt.timer" 23))
 
+  (test-case "append-metric assembles cleansed text"
+    (check-equal? (append-metric "a" "ba" "ab") "ab|a:ba"))
 
   (test-case "check-sample-rate returns sample-rate or #f"
     (check-false (check-sample-rate 0.12 GAUGE))
