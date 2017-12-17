@@ -49,8 +49,8 @@
                          [tags #f])
          (udp-send*
           (get-sock) (create-metric name value type
-                              #:sample-rate sample-rate
-                              #:tags tags)))]))
+                                    #:sample-rate sample-rate
+                                    #:tags tags)))]))
 
 ;; [Macro]
 ;; Used in (with-timer) - calculates the execution time of executing the body
@@ -106,6 +106,7 @@
                 #f (syntax/loc stx (body ...)))]
     [(_ #:name name body ...)
      (time-body (syntax/loc stx name) #f #f (syntax/loc stx (body ...)))]))
+
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; TESTS
