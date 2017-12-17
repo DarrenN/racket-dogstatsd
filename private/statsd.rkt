@@ -1,17 +1,17 @@
 #lang racket/base
 
 (require racket/string
-         racket/udp
          threading
          (for-syntax racket/base
                      racket/syntax)
-         "parameters.rkt"
+         "buffer.rkt"
+         "socket.rkt"
          "utils.rkt")
 
-(provide create-socket
-         counter
+(provide counter
          guage
          histogram
+         set
          timer
          with-timer)
 
@@ -30,14 +30,15 @@
         [(equal? type TIMER) sample-rate]
         [else #f]))
 
+;; Create a metric string
 ;; (-> string? (U string? number?) string? number? list? bytes?)
 (define (create-metric name value type #:sample-rate [sample-rate #f]
                        #:tags [tags #f])
   (let* ([sample (check-sample-rate sample-rate type)])
-    (string->bytes/utf-8
-     (~>> (create-name-value-type name value type)
-          (append-sample-rate sample)
-          (append-tags tags)))))
+    (~>> (create-name-value-type name value type)
+         (append-sample-rate sample)
+         (append-tags tags))))
+
 
 ;; [Macro]
 ;; Bind a proc to the metric type
@@ -46,11 +47,13 @@
   (syntax-case stx ()
     [(_ procname type)
      #'(define (procname name value #:sample-rate [sample-rate #f] #:tags
-                         [tags #f])
-         (udp-send*
-          (get-sock) (create-metric name value type
-                                    #:sample-rate sample-rate
-                                    #:tags tags)))]))
+                         [tags #f] #:buffer [buffer #f])
+         (define metric (create-metric name value type
+                                       #:sample-rate sample-rate
+                                       #:tags tags))
+         (if (metric-buffer? buffer)
+             (buffer-send buffer metric)
+             (sock-send metric)))]))
 
 ;; [Macro]
 ;; Used in (with-timer) - calculates the execution time of executing the body
@@ -72,14 +75,6 @@
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; PUBLIC
-
-;; Create a UDP socket and make available to metric functions
-(define (create-socket #:host-name [host-name "127.0.0.1"]
-                       #:host-port [host-port 8125])
-  (update-sock (udp-open-socket))
-  (let ([sock (get-sock)])
-    (udp-connect! sock host-name host-port)
-    sock))
 
 ;; Basic metric procs
 ;; Ex: (counter name value #:sample-rate 0.25 #:tags '("city:london" "tz:gmt"))
@@ -113,17 +108,53 @@
 
 (module+ test
   (require rackunit
-           racket/list)
+           racket/list
+           racket/udp
+           "buffer.rkt"
+           "socket.rkt")
 
-  (define s (create-socket))
-  (define (slow) (for ([i (range (random 4))]) (sleep 1)))
+  ;; Create out own testing socket and listener
+  (define port 8127)
+  (define tsock (sock-create #:host-port port))
+  (define s (udp-open-socket #f #f))
+  (udp-bind! s "127.0.0.1" port #t)
 
-  (with-timer #:name "rkt.timer" #:tags '("lambda")
-    (slow))
+  (define (get-datagram)
+    (define buffer (make-bytes 1024))
+    (define-values (length host port)
+      (udp-receive! s buffer 0))
+    (subbytes buffer 0 length))
 
-  (test-case "timer works"
-    (timer "rkt.timer" 23))
+  (test-case "with-timer"
+    (with-timer #:name "rkt.timer" #:tags '("lambda")
+      (for ([i (range 200)]) (add1 i)))
+    (check-regexp-match #rx"rkt.timer:(\\d\\.)|ms|#lambda"
+                        (bytes->string/utf-8 (get-datagram))))
 
+  (test-case "timer"
+    (timer "rkt.timer" 23)
+    (check-equal? (bytes->string/utf-8 (get-datagram))
+                  "rkt.timer:23|ms"))
+
+  (test-case "gauge"
+    (guage "rkt.gauge" 12)
+    (check-equal? (bytes->string/utf-8 (get-datagram))
+                  "rkt.gauge:12|g"))
+
+  (test-case "set"
+    (set "rkt.set" 1203)
+    (check-equal? (bytes->string/utf-8 (get-datagram))
+                  "rkt.set:1203|s"))
+
+  (test-case "counter"
+    (counter "rkt.counter" 1203344)
+    (check-equal? (bytes->string/utf-8 (get-datagram))
+                  "rkt.counter:1203344|c"))
+
+  (test-case "histogram"
+    (histogram "rkt.histogram" 12)
+    (check-equal? (bytes->string/utf-8 (get-datagram))
+                  "rkt.histogram:12|h"))
 
   (test-case "check-sample-rate returns sample-rate or #f"
     (check-false (check-sample-rate 0.12 GAUGE))
@@ -132,9 +163,16 @@
     (check-equal? (check-sample-rate 0.12 HISTOGRAM) 0.12)
     (check-equal? (check-sample-rate 0.12 TIMER) 0.12))
 
-  (test-case "all metric procs return #t"
-    (check-true (guage "rkt.guage" (random 100)))
-    (check-true (set "rkt.set" (random 100)))
-    (check-true (counter "rkt.counter" (random 20)))
-    (check-true (histogram "rkt.histogram" (random 100)))
-    (check-true (timer "rkt.timer" (current-inexact-milliseconds)))))
+  (test-case "metrics can take a buffer and will return it"
+    (define buffer (buffer-create 3))
+    (define b1 (counter "rkt" 1 #:buffer buffer))
+    (check-pred metric-buffer? b1)
+    (define b2
+      (for/fold ([b b1])
+                ([i '("is" "super" "cool")])
+        (counter i 1 #:buffer b)))
+    (check-equal? (bytes->string/utf-8 (get-datagram))
+                  "rkt:1|c\nis:1|c\nsuper:1|c\ncool:1|c"))
+
+  (udp-close s)
+  (sock-close))

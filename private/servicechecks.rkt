@@ -3,7 +3,8 @@
 (require racket/string
          racket/udp
          threading
-         "parameters.rkt"
+         "buffer.rkt"
+         "socket.rkt"
          "utils.rkt")
 
 (provide service-check
@@ -33,15 +34,18 @@
 
 (define (service-check name [status UNKNOWN] #:timestamp [timestamp #f]
                        #:hostname [hostname #f] #:tags [tags #f]
-                       #:message [message #f])
-  (udp-send*
-   (get-sock)
-   (string->bytes/utf-8
+                       #:message [message #f] #:buffer [buffer #f])
+
+  (define metric
     (~>> (create-service-check name status)
          (append-event-metric "d" timestamp)
          (append-event-metric "h" hostname)
          (append-tags tags)
-         (append-event-metric "m" message)))))
+         (append-event-metric "m" message)))
+
+  (if (metric-buffer? buffer)
+      (buffer-send buffer metric)
+      (sock-send metric)))
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; TESTS
@@ -49,13 +53,14 @@
 (module+ test
   (require rackunit
            racket/list
-           "parameters.rkt"
+           "socket.rkt"
            "statsd.rkt")
 
   ;; Create out own testing socket and listener
-  (define tsock (create-socket #:host-port 8126))
+  (define port 8128)
+  (define tsock (sock-create #:host-port port))
   (define s (udp-open-socket #f #f))
-  (udp-bind! s #f 8126 #t)
+  (udp-bind! s "127.0.0.1" port #t)
 
   (define (get-datagram)
     (define buffer (make-bytes 1024))
@@ -96,7 +101,7 @@
     (service-check "aphex" 999 #:message "Welcome the Old\nOnes!")
     (check-equal? (get-datagram)
                   (string->bytes/utf-8
-                   (format "_sc|aphex|~a|m:~a" UNKNOWN "Welcome the Old Ones!")))
+                   (format "_sc|aphex|~a|m:~a" UNKNOWN "Welcome the Old\\nOnes!")))
 
     ;; Message is in the specified order
     (service-check "aphex" 999 #:message "Welcome the Old\nOnes!"
@@ -105,5 +110,6 @@
                   (string->bytes/utf-8
                    (format "_sc|aphex|~a|d:~a|h:~a|#~a|m:~a"
                            UNKNOWN timestamp hostname "aeon:12"
-                           "Welcome the Old Ones!"))))
-  )
+                           "Welcome the Old\\nOnes!"))))
+  (udp-close s)
+  (sock-close))

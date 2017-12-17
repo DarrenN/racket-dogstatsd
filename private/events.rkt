@@ -3,7 +3,8 @@
 (require racket/string
          racket/udp
          threading
-         "parameters.rkt"
+         "buffer.rkt"
+         "socket.rkt"
          "utils.rkt")
 
 (provide event)
@@ -40,10 +41,10 @@
                #:priority [priority "normal"]
                #:source-type-name [source-type-name #f]
                #:alert-type [alert-type "info"]
-               #:tags [tags #f])
-  (udp-send*
-   (get-sock)
-   (string->bytes/utf-8
+               #:tags [tags #f]
+               #:buffer [buffer #f])
+
+  (define metric
     (~>> (create-event-title-text title text)
          (append-event-metric "d" timestamp)
          (append-event-metric "h" hostname)
@@ -51,7 +52,11 @@
          (append-event-metric "p" (default-priority priority))
          (append-event-metric "s" source-type-name)
          (append-event-metric "t" (default-alert-type alert-type))
-         (append-tags tags)))))
+         (append-tags tags)))
+
+  (if (metric-buffer? buffer)
+      (buffer-send buffer metric)
+      (sock-send metric)))
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; TESTS
@@ -59,13 +64,14 @@
 (module+ test
   (require rackunit
            racket/list
-           "parameters.rkt"
+           "socket.rkt"
            "statsd.rkt")
 
   ;; Create out own testing socket and listener
-  (define tsock (create-socket #:host-port 8126))
+  (define port 8130)
+  (define tsock (sock-create #:host-port port))
   (define s (udp-open-socket #f #f))
-  (udp-bind! s #f 8126 #t)
+  (udp-bind! s "127.0.0.1" port #t)
 
   (define (get-datagram)
     (define buffer (make-bytes 1024))
@@ -141,4 +147,7 @@
                    "_e{5,11}:water|the pack ad|p:normal|t:info|#state:tx,zip:77036")))
 
   (test-case "append-event-metric assembles cleansed text"
-    (check-equal? (append-event-metric "a" "ba" "ab") "ab|a:ba")))
+    (check-equal? (append-event-metric "a" "ba" "ab") "ab|a:ba"))
+
+  (udp-close s)
+  (sock-close))
