@@ -8,7 +8,7 @@
          append-tags
          create-name-value-type
          escape-tags
-         remove-line-breaks)
+         escape-line-breaks)
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; PUBLIC
@@ -18,10 +18,20 @@
 (define (escape-tags tags)
   (map (λ (s) (string-replace (string-trim s) " " "_")) tags))
 
+;; \n must be converted to \\n
+;; (-> string? string?)
+(define (escape-line-breaks str)
+  (string-trim (string-replace str #px"\n" "\\n")))
+
+;; Metric names cannot contain : | @
+;; (-> string? string?)
+(define (escape-metric-name str)
+  (string-trim (string-replace str #rx"[\\|:@]*" "")))
+
 ;; Build a basic name:value|type string
 ;; (-> string? (U number? string?) string? string? string?)
 (define (create-name-value-type name value type)
-  (string-trim (format "~a:~a|~a" name value type)))
+  (string-trim (format "~a:~a|~a" (escape-metric-name name) value type)))
 
 ;; Only append sample-rate if a number between 0 and 1
 ;; (-> (U bool? number?) string? string?)
@@ -38,16 +48,11 @@
       (format "~a|#~a" str (string-join (escape-tags tags) ","))
       str))
 
-;; Metrics can't have line breaks, tabs, etc
-;; (-> string? string?)
-(define (remove-line-breaks str)
-  (string-trim (string-replace str #px"\\s" " ")))
-
 ;; Append a separator, prefix and value to metric to str, used in event
 ;; (-> string? string? string? string?)
 (define (append-event-metric prefix value str)
   (if value
-      (format "~a|~a:~a" str prefix (remove-line-breaks (format "~a" value)))
+      (format "~a|~a:~a" str prefix (escape-line-breaks (format "~a" value)))
       str))
 
 
@@ -57,6 +62,11 @@
 (module+ test
   (require rackunit
            racket/list)
+
+  (test-case "escape-metric-name removes : | @"
+    (check-equal? (escape-metric-name "foo:bar|baz@quux") "foobarbazquux")
+    (check-equal? (escape-metric-name "foo.bar.baz") "foo.bar.baz")
+    (check-equal? (escape-metric-name "foo.bar:baz") "foo.barbaz"))
 
   (test-case "append-tags"
     (define base1 "spc:eco|c")
@@ -78,16 +88,19 @@
     (check-equal? (create-name-value-type "tricky" "maxinquaye" "triphop")
                   "tricky:maxinquaye|triphop")
     (check-equal? (create-name-value-type "tricky" 0.33 "triphop")
-                  "tricky:0.33|triphop"))
+                  "tricky:0.33|triphop")
+    (check-equal? (create-name-value-type "tricky:is|cool" 0.33 "triphop")
+                  "trickyiscool:0.33|triphop"))
 
   (test-case "escape-tags swaps spaces for underscores and trims"
-    (check-equal? (escape-tags'("little:dragon man" " little:dragon  " "little    dragon"))
+    (check-equal? (escape-tags'("little:dragon man" " little:dragon  "
+                                                    "little    dragon"))
                   '("little:dragon_man" "little:dragon" "little____dragon")))
 
-  (test-case "remove-line-breaks remove line-breaks"
+  (test-case "escape-line-breaks remove line-breaks"
     (define str "  This is
 the coolest
 
 string ever
 ")
-    (check-equal? (remove-line-breaks str) "This is the coolest  string ever")))
+    (check-equal? (escape-line-breaks str) "This is\\nthe coolest\\n\\nstring ever\\n")))
