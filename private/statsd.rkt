@@ -30,15 +30,36 @@
         [(equal? type TIMER) sample-rate]
         [else #f]))
 
+;; Random number between 0 and 1
+;; (-> number?)
+(define (get-rand)
+  (exact->inexact (/ (random 100) 100)))
+
 ;; Create a metric string
-;; (-> string? (U string? number?) string? number? list? bytes?)
+;; (-> string? (U string? number?) string? (U number? false?) list?
+;;     (U string? false?))
+(define (create-metric-string name value type sample tags)
+  (~>> (create-name-value-type name value type)
+       (append-sample-rate sample)
+       (append-tags tags)))
+
+;; Only create a metric string is get-rand is less than sample-rate
+;; (-> string? (U string? number?) string? number? list? (U string? false?))
+(define (create-metric-if-within-range name value type sample tags)
+  (if (<= (get-rand) sample)
+      (create-metric-string name value type sample tags)
+      #f))
+
+;; Create a metric string - if sample-rate is given and this is a valid type for
+;; sampling then we check the sample-rate against rnd and return #f if rnd
+;; larger than sample-rate
+;; (-> string? (U string? number?) string? number? list? (U string? false?))
 (define (create-metric name value type #:sample-rate [sample-rate #f]
                        #:tags [tags #f])
   (let* ([sample (check-sample-rate sample-rate type)])
-    (~>> (create-name-value-type name value type)
-         (append-sample-rate sample)
-         (append-tags tags))))
-
+    (if (sample-within-bounds? sample)
+        (create-metric-if-within-range name value type sample tags)
+        (create-metric-string name value type sample tags))))
 
 ;; [Macro]
 ;; Bind a proc to the metric type
@@ -51,9 +72,12 @@
          (define metric (create-metric name value type
                                        #:sample-rate sample-rate
                                        #:tags tags))
-         (if (metric-buffer? buffer)
-             (buffer-send buffer metric)
-             (sock-send metric)))]))
+
+         ;; if metric false then do not send (dropped due to sample-rate)
+         (when metric
+           (if (metric-buffer? buffer)
+               (buffer-send buffer metric)
+               (sock-send metric))))]))
 
 ;; [Macro]
 ;; Used in (with-timer) - calculates the execution time of executing the body

@@ -8,7 +8,8 @@
          append-tags
          create-name-value-type
          escape-tags
-         escape-line-breaks)
+         escape-line-breaks
+         sample-within-bounds?)
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; PUBLIC
@@ -33,11 +34,15 @@
 (define (create-name-value-type name value type)
   (string-trim (format "~a:~a|~a" (escape-metric-name name) value type)))
 
+;; Ensure sample is < 1 and > 0
+;; (-> number? bool?)
+(define (sample-within-bounds? sample-rate)
+  (and (number? sample-rate) (< sample-rate 1) (> sample-rate 0)))
+
 ;; Only append sample-rate if a number between 0 and 1
 ;; (-> (U bool? number?) string? string?)
 (define (append-sample-rate sample-rate str)
-  (if (and sample-rate (number? sample-rate)
-           (and (< sample-rate 1) (> sample-rate 0)))
+  (if (sample-within-bounds? sample-rate)
       (format "~a|@~a" str sample-rate)
       str))
 
