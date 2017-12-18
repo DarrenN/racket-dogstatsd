@@ -11,6 +11,7 @@
 (provide counter
          guage
          histogram
+         make-buffered
          set
          timer
          with-timer)
@@ -126,6 +127,16 @@
     [(_ #:name name body ...)
      (time-body (syntax/loc stx name) #f #f (syntax/loc stx (body ...)))]))
 
+;; Create a buffered version of a metric proc
+;; ex: (define bcounter (make-buffered counter 10))
+;; (-> metric? number? metric?)
+(define (make-buffered base-proc [limit 25])
+  (let ([buffer (buffer-create limit)])
+    (make-keyword-procedure
+     (λ (kws kw-args . args)
+       (define nkws (cons (string->keyword "buffer") kws))
+       (define nkw-args (cons buffer kw-args))
+       (set! buffer (keyword-apply base-proc nkws nkw-args args))))))
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; TESTS
@@ -197,6 +208,17 @@
         (counter i 1 #:buffer b)))
     (check-equal? (bytes->string/utf-8 (get-datagram))
                   "rkt:1|c\nis:1|c\nsuper:1|c\ncool:1|c"))
+
+  (test-case "make-buffered creates a buffered form of a metric proc"
+    (define bcounter (make-buffered counter 3))
+    (for ([i '(1 2 3 4 5 6 7 8)])
+      (bcounter "rkt" i #:tags '("proc")))
+    (check-equal?
+     (bytes->string/utf-8 (get-datagram))
+     "rkt:1|c|#proc\nrkt:2|c|#proc\nrkt:3|c|#proc\nrkt:4|c|#proc")
+    (check-equal?
+     (bytes->string/utf-8 (get-datagram))
+     "rkt:5|c|#proc\nrkt:6|c|#proc\nrkt:7|c|#proc\nrkt:8|c|#proc"))
 
   (udp-close s)
   (sock-close))
