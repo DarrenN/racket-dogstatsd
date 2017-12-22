@@ -16,6 +16,10 @@
 (define (update-sock s)
   (set! sock s))
 
+(define (handle-sock-exn e)
+  (raise-arguments-error 'sock-send
+                         "UDP socket not open. Call (sock-create) first."))
+
 ;//////////////////////////////////////////////////////////////////////////////
 ; PUBLIC
 
@@ -28,8 +32,10 @@
     sock))
 
 ;; Send a metric string
+;; (-> string? bool?)
 (define (sock-send metric)
-  (udp-send* (get-sock) (string->bytes/utf-8 metric)))
+  (with-handlers ([exn? handle-sock-exn])
+    (udp-send* (get-sock) (string->bytes/utf-8 metric))))
 
 ;; Cleanup and close the socket
 (define (sock-close)

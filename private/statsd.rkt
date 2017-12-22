@@ -148,7 +148,7 @@
            "buffer.rkt"
            "socket.rkt")
 
-  ;; Create out own testing socket and listener
+  ;; Create our own testing socket and listener
   (define port 8127)
   (define tsock (sock-create #:host-port port))
   (define s (udp-open-socket #f #f))
