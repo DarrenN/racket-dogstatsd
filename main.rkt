@@ -6,6 +6,12 @@
 (require "./private/socket.rkt")
 (require "./private/statsd.rkt")
 
+(provide (all-from-out "./private/buffer.rkt")
+         (all-from-out "./private/events.rkt")
+         (all-from-out "./private/servicechecks.rkt")
+         (all-from-out "./private/socket.rkt")
+         (all-from-out "./private/statsd.rkt"))
+
 (module+ test
   (require rackunit))
 
@@ -18,17 +24,6 @@
 ;;   $ raco pkg remove <<name>>
 ;; To view documentation:
 ;;   $ raco docs <<name>>
-;;
-;; For your convenience, we have included a LICENSE.txt file, which links to
-;; the GNU Lesser General Public License.
-;; If you would prefer to use a different license, replace LICENSE.txt with the
-;; desired license.
-;;
-;; Some users like to add a `private/` directory, place auxiliary files there,
-;; and require them in `main.rkt`.
-;;
-;; See the current version of the racket style guide here:
-;; http://docs.racket-lang.org/style/index.html
 
 ;; Code here
 

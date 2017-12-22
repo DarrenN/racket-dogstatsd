@@ -1,10 +1,10 @@
 #lang racket/base
 
 (require racket/list
-         "./private/statsd.rkt")
+         "main.rkt")
 
 (module+ main
-  (socket-create)
+  (sock-create)
   (define (send-times)
     (with-timer #:name "rkt.timer" #:tags '("proc:send-times" "proc:with-timer")
       (let ([xs (range (+ 10000 (random 100000)))])
