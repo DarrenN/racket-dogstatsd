@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require racket/string
+(require racket/list
+         racket/string
          threading
          (for-syntax racket/base
                      racket/syntax)
@@ -90,12 +91,39 @@
                 [timer-tags tags]
                 [(body ...) bodies])
     (syntax/loc bodies
-      (let ([start-time (current-inexact-milliseconds)]
-            [result ((λ () body ...))]
-            [end-time (current-inexact-milliseconds)])
-        (timer timer-name (round (- end-time start-time)) #:sample-rate
-               timer-sample #:tags timer-tags)
-        result))))
+      (let ([proc (λ () body ...)])
+        (define-values (res cpu real gc) (time-apply proc '()))
+        (timer timer-name real #:sample-rate timer-sample #:tags timer-tags)
+        (println (format "~a ~a" cpu real))
+        res))))
+
+; this is where we would do the timer
+(define (time-body name body #:tags [tags #f] #:sample-rate [sample-rate #f]
+                   #:buffer [buffer #f])
+  (let ([proc (λ () body)])
+    (define-values (res cpu real gc) (time-apply proc '()))
+    (timer name real #:buffer buffer #:sample-rate sample-rate #:tags tags)
+    (println (format "~a ~a ~a" name cpu real))
+    res))
+
+
+; convert '(keyword? any? ...) into a hash(keyword? any)
+; used to keep values straight when sorting the keywords
+(define (make-kw-hash lst)
+  (let* ([grouped (group-by keyword? lst)]
+         [kws (car grouped)]
+         [kw-args (cadr grouped)])
+    (for/hash ([key kws]
+               [val kw-args])
+      (values key val))))
+
+; Convert keyword/arg list into form usable by keyword-apply
+(define (with-timer-helper name keys body)
+  (let* ([kw-hash (make-kw-hash keys)]
+         [kws (sort (hash-keys kw-hash) keyword<?)]
+         [kw-args (map (lambda (k) (hash-ref kw-hash k)) kws)]
+         [args (list name body)])
+    (keyword-apply timer kws kw-args args)))
 
 
 ;//////////////////////////////////////////////////////////////////////////////
@@ -109,11 +137,27 @@
 (define/metric histogram HISTOGRAM)
 (define/metric timer TIMER)
 
+(define (with-timer proc #:name name #:sample-rate [sample-rate #f] #:tags
+          [tags #f] #:buffer [buffer #f])
+  (define-values (res cpu real gc) (time-apply proc '()))
+  (timer name
+         real
+         #:sample-rate sample-rate
+         #:tags tags
+         #:buffer buffer)
+  res)
+
+(define-syntax (with-timer2 stx)
+  (syntax-case stx (with-timer)
+    [(_ name keywords ... (body ...))
+     #'(with-timer-helper name '(keywords ...) (body ...))]))
+
 ;; [Macro]
 ;; Wrap a body with a timer call:
 ;; (with-timer #:name "timer.name" #:sample-rate 0.5 #:tags '()
 ;;  ... )
-(define-syntax (with-timer stx)
+#|
+(define-syntax (with-timer2 stx)
   (syntax-case stx ()
     [(_ #:name name #:sample-rate sample-rate #:tags tags body ...)
      (time-body (syntax/loc stx name) (syntax/loc stx sample-rate)
@@ -126,7 +170,7 @@
                 #f (syntax/loc stx (body ...)))]
     [(_ #:name name body ...)
      (time-body (syntax/loc stx name) #f #f (syntax/loc stx (body ...)))]))
-
+|#
 ;; Create a buffered version of a metric proc
 ;; ex: (define bcounter (make-buffered counter 10))
 ;; (-> metric? number? metric?)
