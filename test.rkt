@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require racket/list
-         "main.rkt")
+         dogstatsd)
 
 (module+ main
   (sock-create)

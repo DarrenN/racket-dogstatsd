@@ -1,9 +1,6 @@
 #lang info
 (define collection "dogstatsd")
 (define deps '("base"
-               "racket/string"
-               "racket/syntax"
-               "racket/udp"
                "threading"))
 (define build-deps '("scribble-lib" "racket-doc" "rackunit-lib"))
 (define scribblings '(("scribblings/dogstatsd.scrbl" ())))

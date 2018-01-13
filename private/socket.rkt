@@ -51,7 +51,7 @@
   (require rackunit
            racket/udp)
 
-  (define port 8120)
+  (define port 8125)
   (define s (udp-open-socket #f #f))
   (udp-bind! s "127.0.0.1" port #t)
 
