@@ -1,19 +1,19 @@
 #lang racket/base
 
 (require racket/list
-         "main.rkt")
+         dogstatsd)
 
 (module+ main
   (sock-create)
   (define (send-times)
-    (with-timer #:name "rkt.timer" #:tags '("proc:send-times" "proc:with-timer")
-      (let ([xs (range (+ 10000 (random 100000)))])
-        (histogram "rkt.histogram" (length xs) #:tags '("proc:send-times"
-                                                        "aeon:12"))
+    (with-timer "rkt.timer" #:tags '("proc:send-times" "proc:with-timer")
+      (let ([xs (range 10)])
         (for ([i xs])
-          (* i i 3.141)))
-      (println (current-seconds)))
-    (sleep 0.5)
+          (counter "rkt.counter" i #:tags '("proc:send-times"
+                                            "aeon:12")
+                     #:sample-rate 0.25))))
+    (println (current-seconds))
+    (sleep 2)
     (send-times))
 
   (send-times))

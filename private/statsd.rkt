@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require racket/string
+(require racket/list
+         racket/string
          threading
          (for-syntax racket/base
                      racket/syntax)
@@ -80,22 +81,15 @@
                (buffer-send buffer metric)
                (sock-send metric))))]))
 
-;; [Macro]
-;; Used in (with-timer) - calculates the execution time of executing the body
-;; and sends in a timer metric as ms - returns whatever the executed body
-;; returns
-(define-for-syntax (time-body name sample-rate tags bodies)
-  (with-syntax ([timer-name name]
-                [timer-sample sample-rate]
-                [timer-tags tags]
-                [(body ...) bodies])
-    (syntax/loc bodies
-      (let ([start-time (current-inexact-milliseconds)]
-            [result ((λ () body ...))]
-            [end-time (current-inexact-milliseconds)])
-        (timer timer-name (round (- end-time start-time)) #:sample-rate
-               timer-sample #:tags timer-tags)
-        result))))
+; convert '(keyword? any? ...) into a hash(keyword? any)
+; used to keep values straight when sorting the keywords
+(define (make-kw-hash lst)
+  (let* ([grouped (group-by keyword? lst)]
+         [kws (car grouped)]
+         [kw-args (cadr grouped)])
+    (for/hash ([key kws]
+               [val kw-args])
+      (values key val))))
 
 
 ;//////////////////////////////////////////////////////////////////////////////
@@ -110,22 +104,16 @@
 (define/metric timer TIMER)
 
 ;; [Macro]
-;; Wrap a body with a timer call:
-;; (with-timer #:name "timer.name" #:sample-rate 0.5 #:tags '()
-;;  ... )
+;; Wrap code block with time-apply and send real value (in milliseconds)
+;; via a timer call. Takes all the same keyword args as timer.
+;; ex: (with-timer "rkt.cool-timer" #:tags '("chill") ...)
 (define-syntax (with-timer stx)
-  (syntax-case stx ()
-    [(_ #:name name #:sample-rate sample-rate #:tags tags body ...)
-     (time-body (syntax/loc stx name) (syntax/loc stx sample-rate)
-                (syntax/loc stx tags) (syntax/loc stx (body ...)))]
-    [(_ #:name name #:tags tags body ...)
-     (time-body (syntax/loc stx name) #f (syntax/loc stx tags)
-                (syntax/loc stx (body ...)))]
-    [(_ #:name name #:sample-rate sample-rate body ...)
-     (time-body (syntax/loc stx name) (syntax/loc stx sample-rate)
-                #f (syntax/loc stx (body ...)))]
-    [(_ #:name name body ...)
-     (time-body (syntax/loc stx name) #f #f (syntax/loc stx (body ...)))]))
+  (syntax-case stx (with-timer)
+    [(_ name keywords ... (body ...))
+     #'(let ([proc (λ () (body ...))])
+         (define-values (res cpu real gc) (time-apply proc '()))
+         (timer name real keywords ...)
+         (car res))]))
 
 ;; Create a buffered version of a metric proc
 ;; ex: (define bcounter (make-buffered counter 10))
@@ -137,6 +125,7 @@
        (define nkws (cons (string->keyword "buffer") kws))
        (define nkw-args (cons buffer kw-args))
        (set! buffer (keyword-apply base-proc nkws nkw-args args))))))
+
 
 ;//////////////////////////////////////////////////////////////////////////////
 ; TESTS
@@ -161,10 +150,18 @@
     (subbytes buffer 0 length))
 
   (test-case "with-timer"
-    (with-timer #:name "rkt.timer" #:tags '("lambda")
-      (for ([i (range 200)]) (add1 i)))
-    (check-regexp-match #rx"rkt.timer:(\\d\\.)|ms|#lambda"
-                        (bytes->string/utf-8 (get-datagram))))
+    (with-timer "rkt.timer" #:tags '("foo" "bar")
+      (for ([i (range 200)])
+        (map (λ (s) (string->bytes/utf-8 s)) (make-list i "foo"))))
+    (define res (bytes->string/utf-8 (get-datagram)))
+    (check-regexp-match #rx"rkt.timer:[\\d]|ms|#foo" res))
+
+  (test-case "with-timer returns a value"
+    (define timed (with-timer "rkt.timer" #:tags '("foo")
+                    (+ 1 1 1)))
+    (define res (bytes->string/utf-8 (get-datagram)))
+    (check-regexp-match #rx"rkt.timer:[\\d]|ms|#foo" res)
+    (check-equal? timed 3))
 
   (test-case "timer"
     (timer "rkt.timer" 23)

@@ -51,10 +51,32 @@
   (require rackunit
            racket/udp)
 
-  (test-case "sock-create returns udp?"
-    (check-pred udp? (sock-create))
-    (define-values (a1 a2) (udp-addresses (sock-create)))
-    (check-equal? a1 "127.0.0.1")
-    (check-equal? a2 "127.0.0.1"))
+  (define port 8125)
+  (define s (udp-open-socket #f #f))
+  (udp-bind! s "127.0.0.1" port #t)
 
-  (sock-close))
+  (define (get-datagram)
+    (define buffer (make-bytes 1024))
+    (define-values (length host port)
+      (udp-receive! s buffer 0))
+    (subbytes buffer 0 length))
+
+  (test-case "sock-create returns udp?"
+    (check-pred udp? (sock-create #:host-port port))
+    (sock-close)
+    (define-values (a1 a2) (udp-addresses (sock-create #:host-port port)))
+    (check-equal? a1 "127.0.0.1")
+    (check-equal? a2 "127.0.0.1")
+    (sock-close))
+
+  (test-case "sock-send sends bytes to port via UDP"
+    (sock-create #:host-port port)
+    (sock-send "probot")
+    (define res (bytes->string/utf-8 (get-datagram)))
+    (check-equal? res "probot")
+    (sock-close))
+
+  (test-case "sock-close shuts down the port and a send raises"
+    (sock-create #:host-port port)
+    (sock-close)
+    (check-exn exn:fail? (λ () (sock-send "probot")))))
