@@ -117,7 +117,7 @@ Provides a Racket @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/"]
           [#:sample-rate sample-rate number? #f]
           [#:tags tags (listof string?) #f])
           void?]{
-  Send a DogStatsD @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/#histograms"]{Histogram} metric. Histograms calculate the statistical distribution of any kind of value. For instance y can track distributions for anything, like the size of files users upload to your site.
+  Send a DogStatsD @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/#histograms"]{Histogram} metric. Histograms calculate the statistical distribution of any kind of value. For instance you can track distributions for anything, like the size of files users upload to your site.
 
   @bold{Examples:}
 
@@ -167,7 +167,7 @@ Provides a Racket @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/"]
           [#:sample-rate sample-rate number? #f]
           [#:tags tags (listof string?) #f])
           void?]{
-  Manually send a DogStatsD @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/#timers"]{Histogram} metric. The value should be the milliseconds you wish to record. Read the documentation on Timers, as they create Histogram metrics automatically.
+  Manually send a DogStatsD @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/#timers"]{timing} metrics. The value should be the milliseconds you wish to record. Read the documentation on Timers, as they create Histogram metrics automatically.
 
   @bold{Examples:}
 
