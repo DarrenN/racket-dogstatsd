@@ -4,6 +4,7 @@
          scribble/eval
          @for-label[racket/base
                     racket/contract
+                    racket/list
                     racket/udp
                     dogstatsd]]
 
@@ -220,6 +221,86 @@ Provides a Racket @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/"]
 
 @section{Buffers}
 
+For performance sensitive code you may want to batch up metrics before sending to the Agent. In this case you can create buffered versions of a metric, which only dispatch to the Agent when their limit has been reached.
+
+@defproc[(make-buffered
+          [base-proc procedure?]
+          [limit number? 25])
+          procedure?]{
+  Wraps a metric procedure such as @racket[counter] with a buffer, which will store metrics until @code[]|{limit}| is reached. The default is a buffer of size 25.
+  
+  @bold{Examples:}
+
+  @#reader scribble/comment-reader
+  (racketblock
+        ;; Will buffer 15 metrics before sending to the Agent
+        (define buffered-counter (make-buffered counter 15))
+
+        ;; Only the first 15 metrics will be sent
+        (for ([x (range 17)])
+             (buffered-counter "dogeapp.items" x #:tags '("type:buffered")))
+  )
+}
+
 @section{Events}
 
+@defproc[(event
+          [title string?]
+          [text string?]
+          [#:timestamp timestamp number? #f]
+          [#:hostname hostname string? #f]
+          [#:aggregation-ket aggregation-key string? #f]
+          [#:priority priority (one-of/c "normal" "low") "normal"]
+          [#:source-type-name source-type-name string? #f]
+          [#:alert-type alert-type (one-of/c "info" "error" "warning" "success") "info"]
+          [#:tags tags (listof string?) #f])
+          void?]{
+  Send a DogStatsD @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/#events"]{Event}. DogStatsD can emit events to your Datadog event stream. For example, you may want to see errors and exceptions in Datadog.
+
+  @bold{Example:}
+
+  @#reader scribble/comment-reader
+  (racketblock
+        (define (render-page page)
+          (with-handlers ([exn:fail?
+                           (λ (e) (event "Page render error" (exn:fail-message e)
+                                   #:alert-type "error"))])
+            ... render page ...))
+  )
+}
+
 @section{Service Checks}
+
+DogStatsD can send @hyperlink["https://docs.datadoghq.com/developers/dogstatsd/#service-checks"]{Service checks} to track the status of services your application depends on.
+
+@bold{Status constants}
+
+@deftogether[(@defthing[OK number? #:value 0]
+              @defthing[WARNING number? #:value 1]
+              @defthing[CRITICAL number? #:value 2]
+              @defthing[UNKNOWN number? #:value 3])]{
+  Convenient constants to use for @code[]{status} in @racket[service-check].
+}
+
+@defproc[(service-check
+          [name string?]
+          [status (one-of/c OK WARNING CRITICAL UNKNOWN)]
+          [#:timestamp timestamp number? #f]
+          [#:hostname hostname string? #f]
+          [#:message message string? #f]
+          [#:tags tags (listof string?) #f])
+          void?]{
+
+  @bold{Example:}
+
+  @#reader scribble/comment-reader
+  (racketblock
+        (define (get-redis-connection)
+          (with-handlers ([exn:fail?
+                           (λ (e) (service-check "dogeapp.redis.connection" CRITICAL
+                                   #:message (exn:fail-message e)))])
+            (define conn ...)
+            (serivce-check "dogeapp.redis.connection" OK)
+            conn))
+  )
+}
