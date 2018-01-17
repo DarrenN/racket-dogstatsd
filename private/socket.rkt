@@ -24,6 +24,7 @@
 ; PUBLIC
 
 ;; Create a UDP socket and make available to metric functions
+;; (-> udp?)
 (define (sock-create #:host-name [host-name "127.0.0.1"]
                      #:host-port [host-port 8125])
   (update-sock (udp-open-socket))

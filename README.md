@@ -26,3 +26,14 @@ DogStatsD
 You can see a simple example of `with-timer` in `test.rkt` and all the of statsd functions are available.
 
 **Note**: Requires Racket 6.3 and above.
+
+### Documentation
+
+Read the docs here [https://darrenn.github.io/racket-dogstatsd/index.html](https://darrenn.github.io/racket-dogstatsd/index.html)
+
+Build the docs with:
+
+```
+$ raco scribble --html +m --dest docs --dest-name index scribblings/dogstatsd.scrbl
+```
+

@@ -97,10 +97,10 @@
 
 ;; Basic metric procs
 ;; Ex: (counter name value #:sample-rate 0.25 #:tags '("city:london" "tz:gmt"))
-(define/metric guage GAUGE)
-(define/metric set SET)
 (define/metric counter COUNTER)
+(define/metric guage GAUGE)
 (define/metric histogram HISTOGRAM)
+(define/metric set SET)
 (define/metric timer TIMER)
 
 ;; [Macro]
